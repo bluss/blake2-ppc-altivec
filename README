@@ -1,7 +1,8 @@
 See https://blake2.net/ for information about BLAKE2
 
 This is an implementation of BLAKE2 for PowerPC AltiVec.
-It achieves 11.2 cycles/byte and hashes 96 MB/s on a puny 1.2 GHz PPC G4 7447A.
+It achieves 8.7 cycles/byte and hashes 120 MB/s on a puny 1.2 GHz PPC G4 7447A,
+which is faster than sha1sum's SHA-1.
 
 Of course I'll be happy if there are any ways to improve upon my altivec core.
 

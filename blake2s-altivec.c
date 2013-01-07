@@ -13,8 +13,9 @@
 #include "blake2s-internal.h"
 #include <altivec.h>
 
-typedef vector unsigned int vu32;
-typedef vector unsigned char vu8;
+typedef vector unsigned int   vu32;
+typedef vector unsigned short vu16;
+typedef vector unsigned char  vu8;
 
 static const vu32 vr1 = {16,16,16,16};
 static const vu32 vr2 = {20,20,20,20};
@@ -40,11 +41,11 @@ static const vu32 blake2s_viv[2] = {
     { 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 },
 };
 
-
-static const vu32 mask_1 = {0xff000000, 0xff000000, 0xff000000, 0xff000000};
-static const vu32 mask_2 = {0x00ff0000, 0x00ff0000, 0x00ff0000, 0x00ff0000};
-static const vu32 mask_3 = {0x0000ff00, 0x0000ff00, 0x0000ff00, 0x0000ff00};
-static const vu32 mask_4 = {0x000000ff, 0x000000ff, 0x000000ff, 0x000000ff};
+/* Pick 1st and 2nd bytes, 3rd and 4th bytes */
+static const vu8 pick_1234 = 
+{  0, 17,  4, 21,  8, 25, 12, 29,  2, 19,  6, 23, 10, 27, 14, 31};
+static const vu8 pick_3412 = 
+{  2, 19,  6, 23, 10, 27, 14, 31,  0, 17,  4, 21,  8, 25, 12, 29};
 
 static void blake2s_10rounds(vu32 va, vu32 vb, vu32 vc, vu32 vd,
                              vu32 *vva, vu32 *vvb, const void *msg)
@@ -116,15 +117,12 @@ static void blake2s_10rounds(vu32 va, vu32 vb, vu32 vc, vu32 vd,
         (b) = ror(vr4, (b) ^ (c));  \
     } while (0)
 
-    /* vec_sel(x,y,z)   for each bit: if bit in z is set, pick y, else x */
-#define SELW(x,y,z,w) (vec_sel((x) & mask_1,(y),mask_2)|\
-                       vec_sel((z) & mask_3,(w),mask_4))
-
     /* vec_sld(x,y,z):  shift concat(x,y) left by z bytes */
     /* vec_perm(v,w,p): pick bytes by index in p from concat(v,w) */
     /* vec_mergeh(x,y): pick x0 y0 x1 y1 from vectors (x0 x1 x2 x3) (y0..) */
 #define FULLROUND(r) \
     do { \
+        vu16 x1, x2, x3, x4; \
         /* Apply the round permutation sigma(r,i) to the byte vectors */ \
         vu8 perm = blake2s_vsigma[r]; \
         m1 = vec_perm(mv[0],mv[0], perm); \
@@ -135,12 +133,17 @@ static void blake2s_10rounds(vu32 va, vu32 vb, vu32 vc, vu32 vd,
         perm = vec_sld(perm, perm, 15); \
         m4 = vec_perm(mv[3],mv[3], perm); \
         /* Assemble words 0-15 of the message */\
-        ra = SELW(m1,m2,m3,m4);  /* has  0,  4,  8, 12 */\
-        rc = SELW(m4,m1,m2,m3); \
+        x1 = (vu16)vec_perm(m1,m2,pick_1234); \
+        x2 = (vu16)vec_perm(m3,m4,pick_3412); \
+        x3 = (vu16)vec_perm(m4,m1,pick_1234); \
+        x4 = (vu16)vec_perm(m2,m3,pick_3412); \
+        ra = (vu32)vec_mergeh(x1,x2); \
+        rb = (vu32)vec_mergel(x2,x1); \
+        rc = (vu32)vec_mergeh(x3,x4); \
+        rd = (vu32)vec_mergel(x4,x3); \
+        /* ra */                 /* has  0,  4,  8, 12 */\
         rc = vec_sld(rc, rc, 1); /* has  1,  5,  9, 13 */\
-        rb = SELW(m3,m4,m1,m2); \
         rb = vec_sld(rb, rb, 2); /* has  2,  6, 10, 14 */\
-        rd = SELW(m2,m3,m4,m1); \
         rd = vec_sld(rd, rd, 3); /* has  3,  7, 11, 15 */\
         \
         m1 = vec_mergeh(ra, rb); /* has  0,  2,  4,  6 */\
