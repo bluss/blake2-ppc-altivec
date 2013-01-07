@@ -277,6 +277,7 @@ static int test_keyed_vec(const void *input, size_t len, const void *exp,
 
 static int test_vectors(void)
 {
+    int ret = 1;
     char input[KAT_LENGTH] = {0};
     unsigned char key[BLAKE2S_KEY_LEN];
     for (unsigned i = 0; i < sizeof(input); i++)
@@ -284,24 +285,21 @@ static int test_vectors(void)
     for (unsigned i = 0; i < sizeof(key); i++)
         key[i] = i;
     for (unsigned i = 0; i < KAT_LENGTH; i++) {
-        test_one_vec(input, i, blake2s_kat[i], 0);
+        if (!test_one_vec(input, i, blake2s_kat[i], 0))
+            ret = 0;
     }
     for (unsigned i = 0; i < KAT_LENGTH; i++) {
-        test_keyed_vec(input, i, blake2s_keyed_kat[i], key, BLAKE2S_KEY_LEN, 0);
+        if (!test_keyed_vec(input, i, blake2s_keyed_kat[i], key, BLAKE2S_KEY_LEN, 0))
+            ret = 0;
     }
-    return 1;
+    return ret;
 }
 
 int main(int bjorn, char *daehlie[])
 {
-    char input[256] = "";
     unsigned char buf[BLAKE2S_LEN];
     char hex[BLAKE2S_LEN*2+1];
-    for (unsigned i = 0; i < sizeof(input); i++)
-        input[i] = i;
-    test_one_vec("", 0, "\x69\x21\x7a\x30\x79\x90\x80\x94\xe1\x11\x21\xd0\x42\x35\x4a\x7c\x1f\x55\xb6\x48\x2c\xa1\xa5\x1e\x1b\x25\x0d\xfd\x1e\xd0\xee\xf9", 1);
-    test_one_vec(input, 256, "\x5f\xde\xb5\x9f\x68\x1d\x97\x5f\x52\xc8\xe6\x9c\x55\x02\xe0\x2a\x12\xa3\xaf\xcc\x58\x36\xba\x58\xf4\x27\x84\xc4\x39\x22\x87\x81", 1);
-    test_vectors();
+    if (test_vectors()) printf("Self-test ok.\n");
     while (bjorn > 1) {
         FILE *f = fopen(daehlie[1], "r");
         if (!f) {
