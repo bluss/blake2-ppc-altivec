@@ -58,18 +58,27 @@ static void butil_copy_fast(void *dst, const void *src, unsigned bytes)
     }
 }
 
+static void bstate_inc_t(struct blake2s_ctx *ctx, size_t inc)
+{
+    ctx->t[0] += inc;
+    ctx->t[1] += (ctx->t[0] < inc);
+}
+
+static void bstate_set_final_block(struct blake2s_ctx *ctx)
+{
+    ctx->f[0] = ~0L;
+}
+
+static void bstate_buf_zeropad(struct blake2s_ctx *ctx)
+{
+    memset(ctx->buf + ctx->buf_len, 0, B2S_BLOCK - ctx->buf_len);
+}
 
 static void bstate_buf_add(struct blake2s_ctx *ctx, const void *src,
                           size_t len, size_t off)
 {
     butil_copy_fast(ctx->buf + off, src, len);
     ctx->buf_len = off + len;
-}
-
-static void bstate_inc_t(struct blake2s_ctx *ctx, size_t inc)
-{
-    ctx->t[0] += inc;
-    ctx->t[1] += (ctx->t[0] < inc);
 }
 
 #define bstate_buf_append(ctx,s,l) bstate_buf_add(ctx,(s),l,(ctx)->buf_len)
@@ -112,11 +121,6 @@ static void bstate_secure_zero(struct blake2s_ctx *ctx)
     while (len--) *ptr++ = 0;
 }
 
-static void bstate_pad_buffer(void *buf, unsigned buflen)
-{
-    memset((char *)buf + buflen, 0, B2S_BLOCK - buflen);
-}
-
 static void bstate_output_digest(struct blake2s_ctx *ctx, unsigned char *out)
 {
     /* write digest in le32 to `out` */
@@ -132,8 +136,8 @@ static void bstate_output_digest(struct blake2s_ctx *ctx, unsigned char *out)
 
 void blake2s_final(struct blake2s_ctx *ctx, unsigned char *out)
 {
-    bstate_pad_buffer(ctx->buf, ctx->buf_len);
-    ctx->f[0] = ~0;
+    bstate_buf_zeropad(ctx);
+    bstate_set_final_block(ctx);
     bstate_inc_t(ctx, ctx->buf_len);
     blake2s_compress(ctx, ctx->buf);
     bstate_output_digest(ctx, out);
