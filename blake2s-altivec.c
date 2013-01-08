@@ -44,7 +44,7 @@ static const vu32 blake2s_viv[2] = {
 /* Zip together the even (odd) indices of two vectors */
 static const vu8 zip_even =
 {  0, 16,  2, 18,  4, 20,  6, 22,  8, 24, 10, 26, 12, 28, 14, 30};
-static const vu8 zip_odd =
+static const vu8 zip_odd = /* zip_even + 1 */
 {  1, 17,  3, 19,  5, 21,  7, 23,  9, 25, 11, 27, 13, 29, 15, 31};
 
 static void blake2s_10rounds(vu32 va, vu32 vb, vu32 vc, vu32 vd,
@@ -93,15 +93,15 @@ static void blake2s_10rounds(vu32 va, vu32 vb, vu32 vc, vu32 vd,
     vu32 mv[4];
     vu32 m1, m2, m3, m4;
     for (unsigned i = 0; i < 16; i++) {
-        *((u8 *)msl + i)      = *((u8 *)msg + i*4 + 3);
-        *((u8 *)msl + i + 16) = *((u8 *)msg + i*4 + 2);
-        *((u8 *)msl + i + 32) = *((u8 *)msg + i*4 + 1);
-        *((u8 *)msl + i + 48) = *((u8 *)msg + i*4 + 0); 
+        *((u8 *)msl + i)      = *((u8 *)msg + i*4 + 0);
+        *((u8 *)msl + i + 16) = *((u8 *)msg + i*4 + 1);
+        *((u8 *)msl + i + 32) = *((u8 *)msg + i*4 + 2);
+        *((u8 *)msl + i + 48) = *((u8 *)msg + i*4 + 3);
     }
-    mv[0] = vec_ld( 0, msl); /* all first bytes */
-    mv[1] = vec_ld(16, msl); /* all second bytes etc */
-    mv[2] = vec_ld(32, msl);
-    mv[3] = vec_ld(48, msl);
+    mv[3] = vec_ld( 0, msl); /* all first bytes */
+    mv[2] = vec_ld(16, msl); /* all second bytes etc */
+    mv[1] = vec_ld(32, msl);
+    mv[0] = vec_ld(48, msl);
 
 #define ror(l,v) vec_rl(v, l)
 
