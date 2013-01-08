@@ -17,10 +17,10 @@ typedef vector unsigned int   vu32;
 typedef vector unsigned short vu16;
 typedef vector unsigned char  vu8;
 
-static const vu32 vr1 = {16,16,16,16};
-static const vu32 vr2 = {20,20,20,20};
-static const vu32 vr3 = {24,24,24,24};
-static const vu32 vr4 = {25,25,25,25};
+static const vu32 vr16 = {16,16,16,16};
+static const vu32 vr12 = {20,20,20,20};
+static const vu32 vr8 = {24,24,24,24};
+static const vu32 vr7 = {25,25,25,25};
 
 static const vu8 blake2s_vsigma[10] =
 {
@@ -42,17 +42,17 @@ static const vu32 blake2s_viv[2] = {
 };
 
 /* Zip together the even (odd) indices of two vectors */
-static const vu8 pick_1212 = 
+static const vu8 zip_even =
 {  0, 16,  2, 18,  4, 20,  6, 22,  8, 24, 10, 26, 12, 28, 14, 30};
-static const vu8 pick_1212_s =
+static const vu8 zip_odd =
 {  1, 17,  3, 19,  5, 21,  7, 23,  9, 25, 11, 27, 13, 29, 15, 31};
 
 static void blake2s_10rounds(vu32 va, vu32 vb, vu32 vc, vu32 vd,
                              vu32 *vva, vu32 *vvb, const void *msg)
 {
     /* 
-     * The state `v` is 16 32-bit words
-     * each column is a vector:
+     * The compression function state is 16 32-bit words.
+     * Each column is a vector:
      *   va vb vc vd         va'vb'vc'vd'
      *  +--+--+--+--+       +--+--+--+--+
      *  | 0| 4| 8|12|       | 0| 5|10|15|
@@ -72,21 +72,20 @@ static void blake2s_10rounds(vu32 va, vu32 vb, vu32 vc, vu32 vd,
 
     /* Message schedule
      *
-     * byteslice the message:
-     * Transpose the 4 vectors x 16 bytes into 
-     * 4 vectors of first bytes, second bytes, etc 
+     * Byteslice the message:
+     * Arrange the 16 message words transposed into 4 vectors x 16 bytes
      *
-     * <-  16 bytes  ->
-     * +-+-+-+-+-+-+  +
-     * |0|0|0|0|0|0|..|
-     * +-+-+-+-+-+-+
-     * |1|1| | | | |  |
-     * +-+-+-+-+-+-+
-     * |2|2| | | | |  |
-     * +-+-+-+-+-+-+
-     * |3|3| | | | |  |
-     * +-+-+-+-+-+-+  +
-     *  0 1 2 3 4 5  <-  word of msg
+     * <-4 msg words ->        <-  16 bytes  ->
+     * +-+-+-+-+-+-+--+        +-+-+-+-+-+-+--+
+     * |0|1|2|3|0|1|..|0-3     |0|0|0|0|0|0|..|
+     * +-+-+-+-+-+-+ -|        +-+-+-+-+-+-+ -|
+     * |0|1|2|3|0|1|  |4-7     |1|1| | | | |  |
+     * +-+-+-+-+-+-+ -|  ====> +-+-+-+-+-+-+ -|
+     * | | | | | | |  |        |2|2| | | | |  |
+     * +-+-+-+-+-+-+ -|        +-+-+-+-+-+-+ -|
+     * | | | | | | |  |        |3|3| | | | |  |
+     * +-+-+-+-+-+-+--+        +-+-+-+-+-+-+--+
+     *                          0 1 2 3 4 5  <-  word of msg
      *
      * (also swap byte order while slicing)
      */
@@ -109,13 +108,13 @@ static void blake2s_10rounds(vu32 va, vu32 vb, vu32 vc, vu32 vd,
 #define BLAKE2S_VG(M,N,a,b,c,d) \
     do { \
         (a) += (b) + (M);           \
-        (d) = ror(vr1, (d) ^ (a));  \
+        (d) = ror(vr16, (d) ^ (a));  \
         (c) += (d);                 \
-        (b) = ror(vr2, (b) ^ (c));  \
+        (b) = ror(vr12, (b) ^ (c));  \
         (a) += (b) + (N);           \
-        (d) = ror(vr3, (d) ^ (a));  \
+        (d) = ror(vr8, (d) ^ (a));  \
         (c) += (d);                 \
-        (b) = ror(vr4, (b) ^ (c));  \
+        (b) = ror(vr7, (b) ^ (c));  \
     } while (0)
 
     /* vec_sld(x,y,z):  shift concat(x,y) left by z bytes */
@@ -131,14 +130,14 @@ static void blake2s_10rounds(vu32 va, vu32 vb, vu32 vc, vu32 vd,
         m3 = vec_perm(mv[2],mv[2], perm); \
         m4 = vec_perm(mv[3],mv[3], perm); \
         /* Assemble words 0-15 of the message */\
-        x1 = (vu16)vec_perm(m1,m2,pick_1212); \
-        x2 = (vu16)vec_perm(m3,m4,pick_1212); \
-        x3 = (vu16)vec_perm(m1,m2,pick_1212_s); \
-        x4 = (vu16)vec_perm(m3,m4,pick_1212_s); \
-        m1 = (vu32)vec_mergeh(x1,x2); /* has  0,  2,  4,  6 */\
-        m2 = (vu32)vec_mergeh(x3,x4); /* has  1,  3,  5,  7 */\
-        m3 = (vu32)vec_mergel(x1,x2); /* has  8, 10, 12, 14 */\
-        m4 = (vu32)vec_mergel(x3,x4); /* has  9, 11, 13, 15 */\
+        x1 = (vu16)vec_perm(m1, m2, zip_even); \
+        x2 = (vu16)vec_perm(m3, m4, zip_even); \
+        x3 = (vu16)vec_perm(m1, m2, zip_odd); \
+        x4 = (vu16)vec_perm(m3, m4, zip_odd); \
+        m1 = (vu32)vec_mergeh(x1, x2); /* has  0,  2,  4,  6 */\
+        m2 = (vu32)vec_mergeh(x3, x4); /* has  1,  3,  5,  7 */\
+        m3 = (vu32)vec_mergel(x1, x2); /* has  8, 10, 12, 14 */\
+        m4 = (vu32)vec_mergel(x3, x4); /* has  9, 11, 13, 15 */\
         \
         /* First half:  apply G() on rows */ \
         BLAKE2S_VG(m1,m2,va,vb,vc,vd); \
