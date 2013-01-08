@@ -173,10 +173,6 @@ void blake2s_init(struct blake2s_ctx *ctx)
     blake2s_init_ex(ctx, blake2s_salt_def, BLAKE2S_LEN, 0);
 }
 
-
-/* `salt` must be 8 bytes or NULL
- * `key_len` must be in [1,32]
- */
 int blake2s_init_keyed(struct blake2s_ctx *ctx, const void *salt,
                         const void *key, unsigned key_len, unsigned dig_len)
 {
@@ -229,6 +225,9 @@ _out:
     return ret;
 }
 
+
+/* Self-test code */
+
 static char *hexdigest(char *buf, const u8 *digest, size_t len)
 {
     char *digits = "0123456789abcdef";
@@ -240,11 +239,9 @@ static char *hexdigest(char *buf, const u8 *digest, size_t len)
     return buf;
 }
 
-static int test_one_vec(const void *input, size_t len, const void *exp, int verbose)
+static int test_checkdigest(const void *digest, const void *exp, int verbose)
 {
-    u8 digest[BLAKE2S_LEN];
     char hex[BLAKE2S_LEN*2+1];
-    blake2s(digest, input, len);
     if (!memcmp(digest, exp, BLAKE2S_LEN)) {
         if (verbose)
             printf("PASS %s\n", hexdigest(hex, digest, BLAKE2S_LEN));
@@ -254,24 +251,24 @@ static int test_one_vec(const void *input, size_t len, const void *exp, int verb
     printf("FAIL. Exp: %s\n", hexdigest(hex, exp, BLAKE2S_LEN));
     return 0;
 }
+
+static int test_one_vec(const void *input, size_t len, const void *exp, int verbose)
+{
+    u8 digest[BLAKE2S_LEN];
+    memset(digest, 0, BLAKE2S_LEN);
+    blake2s(digest, input, len);
+    return test_checkdigest(digest, exp, verbose);
+}
 static int test_keyed_vec(const void *input, size_t len, const void *exp,
                           const void *key, unsigned keylen, int verbose)
 {
     u8 digest[BLAKE2S_LEN];
-    char hex[BLAKE2S_LEN*2+1];
     struct blake2s_ctx ctx;
     memset(digest, 0, BLAKE2S_LEN);
     blake2s_init_keyed(&ctx, NULL, key, keylen, BLAKE2S_LEN);
     blake2s_update(&ctx, input, len);
     blake2s_final(&ctx, digest);
-    if (!memcmp(digest, exp, BLAKE2S_LEN)) {
-        if (verbose)
-            printf("PASS %s\n", hexdigest(hex, digest, BLAKE2S_LEN));
-        return 1;
-    }
-    printf("FAIL. Got: %s\n", hexdigest(hex, digest, BLAKE2S_LEN));
-    printf("FAIL. Exp: %s\n", hexdigest(hex, exp, BLAKE2S_LEN));
-    return 0;
+    return test_checkdigest(digest, exp, verbose);
 }
 #include "blake-kat.h"
 
