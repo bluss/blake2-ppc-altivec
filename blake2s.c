@@ -30,7 +30,6 @@
  * Personalization (8, 24-32) default zeros
  */
 #define B2S_BLOCK BLAKE2S_BLOCK
-#define B2S_PARAM_KEY_IDX 1
 #define B2S_PARAM_WORDS 4
 #define B2S_SALT_WORDS  2
 #define B2S_PERS_WORDS  2
@@ -51,12 +50,15 @@ static void butil_copy_fast(void *dst, const void *src, unsigned bytes)
     const u8 *usrc = src;
     unsigned off = bytes - (bytes & 3);
     butil_copy_words(dst, src, bytes);
-    switch (bytes & 3) {
-        case 3: udst[off] = usrc[off]; off++;
-        case 2: udst[off] = usrc[off]; off++;
-        case 1: udst[off] = usrc[off]; off++;
-    }
+    for (unsigned i = off; i < bytes; i++)
+        udst[i] = usrc[i];
 }
+
+static void butil_overwrite_zeros(void *dst, size_t len)
+{
+    memset(dst, 0, len);
+}
+
 
 static void bstate_inc_t(struct blake2s_ctx *ctx, size_t inc)
 {
@@ -114,13 +116,6 @@ void blake2s_update(struct blake2s_ctx *ctx, const void *src, size_t len)
     bstate_buf_set(ctx, (char *)src + src_off, len);
 }
 
-static void bstate_secure_zero(struct blake2s_ctx *ctx)
-{
-    size_t len = sizeof(*ctx);
-    volatile u8 *ptr = (void *)ctx;
-    while (len--) *ptr++ = 0;
-}
-
 static void bstate_output_digest(struct blake2s_ctx *ctx, unsigned char *out)
 {
     /* write digest in le32 to `out` */
@@ -141,7 +136,7 @@ void blake2s_final(struct blake2s_ctx *ctx, unsigned char *out)
     bstate_inc_t(ctx, ctx->buf_len);
     blake2s_compress(ctx, ctx->buf);
     bstate_output_digest(ctx, out);
-    bstate_secure_zero(ctx);
+    butil_overwrite_zeros(ctx, sizeof(*ctx));
 }
 
 static void blake2s_init_ex(struct blake2s_ctx *ctx, const void *salt,
@@ -192,7 +187,7 @@ int blake2s_init_keyed(struct blake2s_ctx *ctx, const void *salt,
 
     memcpy(key_block, key, key_len);
     blake2s_update(ctx, key_block, B2S_BLOCK);
-    memset(key_block, 0xff, sizeof(key_block));
+    butil_overwrite_zeros(key_block, sizeof(key_block));
     return 1;
 }
 
