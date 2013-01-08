@@ -41,11 +41,11 @@ static const vu32 blake2s_viv[2] = {
     { 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 },
 };
 
-/* Pick 1st and 2nd bytes, 3rd and 4th bytes */
-static const vu8 pick_1234 = 
-{  0, 17,  4, 21,  8, 25, 12, 29,  2, 19,  6, 23, 10, 27, 14, 31};
-static const vu8 pick_3412 = 
-{  2, 19,  6, 23, 10, 27, 14, 31,  0, 17,  4, 21,  8, 25, 12, 29};
+/* Zip together the even (odd) indices of two vectors */
+static const vu8 pick_1212 = 
+{  0, 16,  2, 18,  4, 20,  6, 22,  8, 24, 10, 26, 12, 28, 14, 30};
+static const vu8 pick_1212_s =
+{  1, 17,  3, 19,  5, 21,  7, 23,  9, 25, 11, 27, 13, 29, 15, 31};
 
 static void blake2s_10rounds(vu32 va, vu32 vb, vu32 vc, vu32 vd,
                              vu32 *vva, vu32 *vvb, const void *msg)
@@ -86,16 +86,17 @@ static void blake2s_10rounds(vu32 va, vu32 vb, vu32 vc, vu32 vd,
      * +-+-+-+-+-+-+
      * |3|3| | | | |  |
      * +-+-+-+-+-+-+  +
-     *  0 1 2 3 4 5  <- vector 0, 1, 2, 3
+     *  0 1 2 3 4 5  <-  word of msg
+     *
+     * (also swap byte order while slicing)
      */
-    /* byteswap from be32 to le32 while byteslicing */
     u32 msl[16] ALIGN(16);
     vu32 mv[4];
-    vu32 ra, rb, rc, rd, m1, m2, m3, m4;
+    vu32 m1, m2, m3, m4;
     for (unsigned i = 0; i < 16; i++) {
-        *((u8 *)msl + i)      = *((u8 *)msg + i*4 + 3); /* 3 */
-        *((u8 *)msl + i + 16) = *((u8 *)msg + i*4 + 2); /* 2 */ 
-        *((u8 *)msl + i + 32) = *((u8 *)msg + i*4 + 1); /* reverse byteorder */
+        *((u8 *)msl + i)      = *((u8 *)msg + i*4 + 3);
+        *((u8 *)msl + i + 16) = *((u8 *)msg + i*4 + 2);
+        *((u8 *)msl + i + 32) = *((u8 *)msg + i*4 + 1);
         *((u8 *)msl + i + 48) = *((u8 *)msg + i*4 + 0); 
     }
     mv[0] = vec_ld( 0, msl); /* all first bytes */
@@ -126,38 +127,26 @@ static void blake2s_10rounds(vu32 va, vu32 vb, vu32 vc, vu32 vd,
         /* Apply the round permutation sigma(r,i) to the byte vectors */ \
         vu8 perm = blake2s_vsigma[r]; \
         m1 = vec_perm(mv[0],mv[0], perm); \
-        perm = vec_sld(perm, perm, 15); \
         m2 = vec_perm(mv[1],mv[1], perm); \
-        perm = vec_sld(perm, perm, 15); \
         m3 = vec_perm(mv[2],mv[2], perm); \
-        perm = vec_sld(perm, perm, 15); \
         m4 = vec_perm(mv[3],mv[3], perm); \
         /* Assemble words 0-15 of the message */\
-        x1 = (vu16)vec_perm(m1,m2,pick_1234); \
-        x2 = (vu16)vec_perm(m3,m4,pick_3412); \
-        x3 = (vu16)vec_perm(m4,m1,pick_1234); \
-        x4 = (vu16)vec_perm(m2,m3,pick_3412); \
-        ra = (vu32)vec_mergeh(x1,x2); \
-        rb = (vu32)vec_mergel(x2,x1); \
-        rc = (vu32)vec_mergeh(x3,x4); \
-        rd = (vu32)vec_mergel(x4,x3); \
-        /* ra */                 /* has  0,  4,  8, 12 */\
-        rc = vec_sld(rc, rc, 1); /* has  1,  5,  9, 13 */\
-        rb = vec_sld(rb, rb, 2); /* has  2,  6, 10, 14 */\
-        rd = vec_sld(rd, rd, 3); /* has  3,  7, 11, 15 */\
+        x1 = (vu16)vec_perm(m1,m2,pick_1212); \
+        x2 = (vu16)vec_perm(m3,m4,pick_1212); \
+        x3 = (vu16)vec_perm(m1,m2,pick_1212_s); \
+        x4 = (vu16)vec_perm(m3,m4,pick_1212_s); \
+        m1 = (vu32)vec_mergeh(x1,x2); /* has  0,  2,  4,  6 */\
+        m2 = (vu32)vec_mergeh(x3,x4); /* has  1,  3,  5,  7 */\
+        m3 = (vu32)vec_mergel(x1,x2); /* has  8, 10, 12, 14 */\
+        m4 = (vu32)vec_mergel(x3,x4); /* has  9, 11, 13, 15 */\
         \
-        m1 = vec_mergeh(ra, rb); /* has  0,  2,  4,  6 */\
-        m3 = vec_mergel(ra, rb); /* has  8, 10, 12, 14 */\
-        m2 = vec_mergeh(rc, rd); /* has  1,  3,  5,  7 */\
-        m4 = vec_mergel(rc, rd); /* has  9, 11, 13, 15 */\
-        \
-        /* First half:  apply G() on columns */ \
+        /* First half:  apply G() on rows */ \
         BLAKE2S_VG(m1,m2,va,vb,vc,vd); \
         \
+        /* Second half: apply G() on diagonals */ \
         vb = vec_sld(vb, vb, 4); \
         vc = vec_sld(vc, vc, 8); \
         vd = vec_sld(vd, vd, 12); \
-        /* Second half: apply G() on diagonals */ \
         BLAKE2S_VG(m3,m4,va,vb,vc,vd); \
         vb = vec_sld(vb, vb, 12); \
         vc = vec_sld(vc, vc, 8); \
