@@ -22,30 +22,43 @@ static const vu32 vr12 = {20,20,20,20};
 static const vu32 vr8 = {24,24,24,24};
 static const vu32 vr7 = {25,25,25,25};
 
-static const vu8 blake2s_vsigma[10] =
+/* These are a combination of the BLAKE2 sigma(r) message word permutation
+ * combined with a Zip even/odd permutation where
+ * (a0 a1 a2 a3 ...) x (b0 b1 b2 b3 ..) -> (a0 b0 a2 b2 ...) */
+static const vu8 blake2s_vsigma_even[10] =
 {
-  {  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15 },
-  { 14, 10,  4,  8,  9, 15, 13,  6,  1, 12,  0,  2, 11,  7,  5,  3 },
-  { 11,  8, 12,  0,  5,  2, 15, 13, 10, 14,  3,  6,  7,  1,  9,  4 },
-  {  7,  9,  3,  1, 13, 12, 11, 14,  2,  6,  5, 10,  4,  0, 15,  8 },
-  {  9,  0,  5,  7,  2,  4, 10, 15, 14,  1, 11, 12,  6,  8,  3, 13 },
-  {  2, 12,  6, 10,  0, 11,  8,  3,  4, 13,  7,  5, 15, 14,  1,  9 },
-  { 12,  5,  1, 15, 14, 13,  4, 10,  0,  7,  6,  3,  9,  2,  8, 11 },
-  { 13, 11,  7, 14, 12,  1,  3,  9,  5,  0, 15,  4,  8,  6,  2, 10 },
-  {  6, 15, 14,  9, 11,  3,  0,  8, 12,  2, 13,  7,  1,  4, 10,  5 },
-  { 10,  2,  8,  4,  7,  6,  1,  5, 15, 11,  9, 14,  3, 12, 13 , 0 },
+    /*  G(m,.,) rows --->            G(m,.) diags ---> */
+    { 0, 16,  2, 18,  4, 20,  6, 22,  8, 24, 10, 26, 12, 28, 14, 30},
+    {14, 30,  4, 20,  9, 25, 13, 29,  1, 17,  0, 16, 11, 27,  5, 21},
+    {11, 27, 12, 28,  5, 21, 15, 31, 10, 26,  3, 19,  7, 23,  9, 25},
+    { 7, 23,  3, 19, 13, 29, 11, 27,  2, 18,  5, 21,  4, 20, 15, 31},
+    { 9, 25,  5, 21,  2, 18, 10, 26, 14, 30, 11, 27,  6, 22,  3, 19},
+    { 2, 18,  6, 22,  0, 16,  8, 24,  4, 20,  7, 23, 15, 31,  1, 17},
+    {12, 28,  1, 17, 14, 30,  4, 20,  0, 16,  6, 22,  9, 25,  8, 24},
+    {13, 29,  7, 23, 12, 28,  3, 19,  5, 21, 15, 31,  8, 24,  2, 18},
+    { 6, 22, 14, 30, 11, 27,  0, 16, 12, 28, 13, 29,  1, 17, 10, 26},
+    {10, 26,  8, 24,  7, 23,  1, 17, 15, 31,  9, 25,  3, 19, 13, 29},
+};
+
+static const vu8 blake2s_vsigma_odd[10] =
+{
+    /*  G(.,m) rows --->             G(.,m) diags ---> */
+    { 1, 17,  3, 19,  5, 21,  7, 23,  9, 25, 11, 27, 13, 29, 15, 31},
+    {10, 26,  8, 24, 15, 31,  6, 22, 12, 28,  2, 18,  7, 23,  3, 19},
+    { 8, 24,  0, 16,  2, 18, 13, 29, 14, 30,  6, 22,  1, 17,  4, 20},
+    { 9, 25,  1, 17, 12, 28, 14, 30,  6, 22, 10, 26,  0, 16,  8, 24},
+    { 0, 16,  7, 23,  4, 20, 15, 31,  1, 17, 12, 28,  8, 24, 13, 29},
+    {12, 28, 10, 26, 11, 27,  3, 19, 13, 29,  5, 21, 14, 30,  9, 25},
+    { 5, 21, 15, 31, 13, 29, 10, 26,  7, 23,  3, 19,  2, 18, 11, 27},
+    {11, 27, 14, 30,  1, 17,  9, 25,  0, 16,  4, 20,  6, 22, 10, 26},
+    {15, 31,  9, 25,  3, 19,  8, 24,  2, 18,  7, 23,  4, 20,  5, 21},
+    { 2, 18,  4, 20,  6, 22,  5, 21, 11, 27, 14, 30, 12, 28,  0, 16},
 };
 
 static const vu32 blake2s_viv[2] = {
     { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a },
     { 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 },
 };
-
-/* Zip together the even (odd) indices of two vectors */
-static const vu8 zip_even =
-{  0, 16,  2, 18,  4, 20,  6, 22,  8, 24, 10, 26, 12, 28, 14, 30};
-static const vu8 zip_odd = /* zip_even + 1 */
-{  1, 17,  3, 19,  5, 21,  7, 23,  9, 25, 11, 27, 13, 29, 15, 31};
 
 static void blake2s_10rounds(vu32 va, vu32 vb, vu32 vc, vu32 vd,
                              vu32 *vva, vu32 *vvb, const void *msg)
@@ -123,17 +136,14 @@ static void blake2s_10rounds(vu32 va, vu32 vb, vu32 vc, vu32 vd,
 #define FULLROUND(r) \
     do { \
         vu16 x1, x2, x3, x4; \
-        /* Apply the round permutation sigma(r,i) to the byte vectors */ \
-        vu8 perm = blake2s_vsigma[r]; \
-        m1 = vec_perm(mv[0],mv[0], perm); \
-        m2 = vec_perm(mv[1],mv[1], perm); \
-        m3 = vec_perm(mv[2],mv[2], perm); \
-        m4 = vec_perm(mv[3],mv[3], perm); \
+        /* Apply the round permutation sigma(r) to the byte vectors */ \
+        vu8 sigma_even = blake2s_vsigma_even[r]; \
+        vu8 sigma_odd  = blake2s_vsigma_odd[r]; \
         /* Assemble words 0-15 of the message */\
-        x1 = (vu16)vec_perm(m1, m2, zip_even); \
-        x2 = (vu16)vec_perm(m3, m4, zip_even); \
-        x3 = (vu16)vec_perm(m1, m2, zip_odd); \
-        x4 = (vu16)vec_perm(m3, m4, zip_odd); \
+        x1 = (vu16)vec_perm(mv[0], mv[1], sigma_even); \
+        x2 = (vu16)vec_perm(mv[2], mv[3], sigma_even); \
+        x3 = (vu16)vec_perm(mv[0], mv[1], sigma_odd); \
+        x4 = (vu16)vec_perm(mv[2], mv[3], sigma_odd); \
         m1 = (vu32)vec_mergeh(x1, x2); /* has  0,  2,  4,  6 */\
         m2 = (vu32)vec_mergeh(x3, x4); /* has  1,  3,  5,  7 */\
         m3 = (vu32)vec_mergel(x1, x2); /* has  8, 10, 12, 14 */\
