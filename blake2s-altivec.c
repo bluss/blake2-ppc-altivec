@@ -19,8 +19,8 @@ typedef vector unsigned char  vu8;
 
 static const vu32 vr16 = {16,16,16,16};
 static const vu32 vr12 = {20,20,20,20};
-static const vu32 vr8 = {24,24,24,24};
-static const vu32 vr7 = {25,25,25,25};
+static const vu32 vr8  = {24,24,24,24};
+static const vu32 vr7  = {25,25,25,25};
 
 /* These are a combination of the BLAKE2 sigma(r) message word permutation
  * combined with a Zip even/odd permutation where
@@ -116,18 +116,18 @@ static void blake2s_10rounds(vu32 va, vu32 vb, vu32 vc, vu32 vd,
     mv[1] = vec_ld(32, msl);
     mv[0] = vec_ld(48, msl);
 
-#define ror(l,v) vec_rl(v, l)
+#define ror(l,v) vec_rl(v, vr ## l)
 
 #define BLAKE2S_VG(M,N,a,b,c,d) \
     do { \
         (a) += (b) + (M);           \
-        (d) = ror(vr16, (d) ^ (a));  \
+        (d)  = ror(16, (d) ^ (a));  \
         (c) += (d);                 \
-        (b) = ror(vr12, (b) ^ (c));  \
+        (b)  = ror(12, (b) ^ (c));  \
         (a) += (b) + (N);           \
-        (d) = ror(vr8, (d) ^ (a));  \
+        (d)  = ror( 8, (d) ^ (a));  \
         (c) += (d);                 \
-        (b) = ror(vr7, (b) ^ (c));  \
+        (b)  = ror( 7, (b) ^ (c));  \
     } while (0)
 
     /* vec_sld(x,y,z):  shift concat(x,y) left by z bytes */
