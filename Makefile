@@ -1,14 +1,21 @@
 
 
-CFLAGS = -O3 -std=c99 -Wall -Wextra -pedantic
+CFLAGS = -O3 -g -std=c99 -Wall -Wextra -pedantic
 CFLAGS += -save-temps -fverbose-asm
 
+KERN = $(shell uname -s)
 ARCH = $(shell arch)
-ifeq ($(ARCH),ppc)
-CFLAGS += -maltivec -mabi=altivec -mcpu=7450
-endif
-ifeq ($(ARCH),ppc64)
+
+ifneq ($(findstring ppc,$(ARCH)),)
 CFLAGS += -maltivec -mabi=altivec
+
+ifeq ($(ARCH),ppc)
+CFLAGS += -mcpu=7450
+endif
+ifeq ($(KERN),Linux)
+CFLAGS += -mno-vrsave
+endif
+
 endif
 
 blake2s: blake2s.o blake2s-generic.o
