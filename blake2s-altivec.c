@@ -61,7 +61,7 @@ static const vu32 blake2s_viv[2] = {
 };
 
 static void blake2s_10rounds(vu32 va, vu32 vb, vu32 vc, vu32 vd,
-                             vu32 *vva, vu32 *vvb, const void *msg)
+                             vu32 H[2], const void *msg)
 {
     /* 
      * The compression function state is 16 32-bit words.
@@ -174,11 +174,10 @@ static void blake2s_10rounds(vu32 va, vu32 vb, vu32 vc, vu32 vd,
     FULLROUND(8);
     FULLROUND(9);
 
-    /* xor together v[i] and v[i+8] and store just the two first vectors */
-    va ^= vc;
-    vb ^= vd;
-    *vva = va;
-    *vvb = vb;
+    H[0] ^= va;
+    H[0] ^= vc;
+    H[1] ^= vb;
+    H[1] ^= vd;
 }
 
 void blake2s_compress(struct blake2s_ctx *ctx, const void *m)
@@ -193,10 +192,7 @@ void blake2s_compress(struct blake2s_ctx *ctx, const void *m)
     vc = blake2s_viv[0];
     vd = blake2s_viv[1] ^ vpr;
 
-    blake2s_10rounds(va,vb,vc,vd, &va, &vb, m);
-
-    H[0] ^= va;
-    H[1] ^= vb;
+    blake2s_10rounds(va,vb,vc,vd, H, m);
 
     /* vec_st: store vector at 16-byte aligned address */
     vec_st(H[0],  0, ctx->H);
