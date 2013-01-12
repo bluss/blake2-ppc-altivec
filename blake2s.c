@@ -202,11 +202,9 @@ void blake2s(unsigned char *out, const void *src, size_t len)
 int blake2s_file(unsigned char *out, FILE *stream)
 {
     struct blake2s_ctx ctx;
-    unsigned char *buf;
+    unsigned char buf[B2S_IO_CHUNKSIZ] ALIGN(64);
     int ret = 1;
 
-    if (!(buf = malloc(B2S_IO_CHUNKSIZ)))
-        return -1;
     blake2s_init(&ctx);
     while (1) {
         size_t read = fread(buf, 1, B2S_IO_CHUNKSIZ, stream);
@@ -220,7 +218,6 @@ int blake2s_file(unsigned char *out, FILE *stream)
     }
     blake2s_final(&ctx, out);
 _out:
-    free(buf);
     return ret;
 }
 
