@@ -221,6 +221,20 @@ _out:
     return ret;
 }
 
+#define B2S_BENCH_BLOCKS (100*1024*1024/B2S_IO_CHUNKSIZ) /* 100 MiB */
+
+static void blake2s_bench(unsigned char *out)
+{
+    struct blake2s_ctx ctx;
+    unsigned char buf[B2S_IO_CHUNKSIZ] ALIGN(64) = {0};
+
+    blake2s_init(&ctx);
+    for (size_t i = 0; i < B2S_BENCH_BLOCKS; i++) {
+        blake2s_update(&ctx, buf, B2S_IO_CHUNKSIZ);
+    }
+    blake2s_final(&ctx, out);
+}
+
 
 /* Self-test code */
 
@@ -293,6 +307,11 @@ int main(int bjorn, char *daehlie[])
     unsigned char buf[BLAKE2S_LEN];
     char hex[BLAKE2S_LEN*2+1];
     if (test_vectors()) printf("Self-test ok.\n");
+    if (bjorn > 1 && !strcmp(daehlie[1], "--bench")) {
+        blake2s_bench(buf);
+        printf("%s  %s\n", hexdigest(hex, buf, BLAKE2S_LEN), "(bench)");
+        bjorn--; daehlie++;
+    }
     while (bjorn > 1) {
         FILE *f = fopen(daehlie[1], "r");
         if (!f) {
