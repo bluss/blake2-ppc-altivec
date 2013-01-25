@@ -292,12 +292,13 @@ static int test_vectors(void)
     for (unsigned i = 0; i < sizeof(key); i++)
         key[i] = i;
     for (unsigned i = 0; i < KAT_LENGTH; i++) {
-        if (!test_one_vec(input, i, blake2s_kat[i], 0))
-            ret = 0;
+        ret = test_one_vec(input, i, blake2s_kat[i], 0);
+        if (!ret) break;
     }
     for (unsigned i = 0; i < KAT_LENGTH; i++) {
-        if (!test_keyed_vec(input, i, blake2s_keyed_kat[i], key, BLAKE2S_KEY_LEN, 0))
-            ret = 0;
+        ret = test_keyed_vec(input, i, blake2s_keyed_kat[i],
+                             key, BLAKE2S_KEY_LEN, 0);
+        if (!ret) break;
     }
     return ret;
 }
