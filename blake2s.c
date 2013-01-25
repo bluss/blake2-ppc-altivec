@@ -68,7 +68,7 @@ static void bstate_inc_t(struct blake2s_ctx *ctx, size_t inc)
 
 static void bstate_set_final_block(struct blake2s_ctx *ctx)
 {
-    ctx->f[0] = ~0L;
+    ctx->f[0] = ~0UL;
 }
 
 static void bstate_buf_zeropad(struct blake2s_ctx *ctx)
